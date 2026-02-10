@@ -1,9 +1,12 @@
 
 from PySide6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLabel, QMenu, QFileDialog, QDialog, QPushButton
-from PySide6.QtGui import QAction, QColor, QPalette, QPixmap
+from PySide6.QtGui import QAction, QColor, QPalette, QPixmap, QImage
+import cv2
+import numpy as np
 from PySide6.QtCore import Qt, Signal
 from .graphics_area import GraphicsArea
 from .controls import ControlPanel
+from .parallax_worker import ParallaxHelpDialog, apply_parallax_correction
 
 class ImageLabel(QLabel):
     clicked = Signal(QPixmap)
@@ -29,11 +32,14 @@ class ImageLabel(QLabel):
     def load_image(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "Open Image", "", "Images (*.jpg *.jpeg)")
         if file_name:
-            pixmap = QPixmap(file_name)
-            if not pixmap.isNull():
-                self._original_pixmap = pixmap
-                self.update_display()
-                self.setStyleSheet("background-color: #333; border: none;")
+            self.set_image(file_name)
+
+    def set_image(self, file_path):
+        pixmap = QPixmap(file_path)
+        if not pixmap.isNull():
+            self._original_pixmap = pixmap
+            self.update_display()
+            self.setStyleSheet("background-color: #333; border: none;")
 
     def resizeEvent(self, event):
         if self._original_pixmap:
@@ -47,27 +53,12 @@ class ImageLabel(QLabel):
         scaled = self._original_pixmap.scaled(self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.setPixmap(scaled)
 
-class ParallaxHelpDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Fix Parallax")
-        self.setModal(False) # Non-modal to allow interaction with main window
-        self.resize(300, 150)
-        
-        layout = QVBoxLayout(self)
-        label = QLabel("Drag handles to select the actual image of the jigsaw.\n\nClick Done when selected or ESC to cancel.")
-        label.setWordWrap(True)
-        layout.addWidget(label)
-        
-        done_btn = QPushButton("Done")
-        done_btn.clicked.connect(self.accept) # Accept triggers close
-        layout.addWidget(done_btn)
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Jigsaw - Windows 11 Graphic App")
-        self.resize(1000, 700)
+        self.resize(2000, 1700)
         
         # Setup Central Widget
         central_widget = QWidget()
@@ -91,18 +82,21 @@ class MainWindow(QMainWindow):
         
         # Top Row (3 Images)
         top_row_widget = QWidget()
+        top_row_widget.setMaximumHeight(250) # Keep images fairly small
         top_row_layout = QHBoxLayout(top_row_widget)
         top_row_layout.setContentsMargins(10, 10, 10, 10)
         top_row_layout.setSpacing(10)
         
         labels = ["Box cover", "So far", "Pieces"]
+        self.image_labels = {}
         for text in labels:
             label = ImageLabel(text)
             label.clicked.connect(lambda p, s=text: self.set_active_image(p, s))
+            self.image_labels[text] = label
             top_row_layout.addWidget(label)
             
-        content_layout.addWidget(top_row_widget, 1) # Occupy 1/3 (approx, via weight)
-        content_layout.addWidget(self.work_image, 2) # Occupy 2/3 (approx, twice the weight of top)
+        content_layout.addWidget(top_row_widget, 0) # 0 stretch factor (fixed size/no growth)
+        content_layout.addWidget(self.work_image, 1) # 1 stretch factor (takes all remaining space)
         
         # Add to main layout
         main_layout.addWidget(self.controls, 1)      # Controls take small width
@@ -130,9 +124,17 @@ class MainWindow(QMainWindow):
             }
         """)
         self.setup_menu()
+
+    def load_box_cover(self, file_path):
+        if "Box cover" in self.image_labels:
+            self.image_labels["Box cover"].set_image(file_path)
+            # Optionally simulate a click to make it active immediately
+            # self.set_active_image(self.image_labels["Box cover"]._original_pixmap, "Box cover")
+
         
     def set_active_image(self, pixmap, source_label):
         self.current_source_label = source_label
+        self.current_pixmap = pixmap
         print(f"Active source set to: {self.current_source_label}") # Verification/Debug
         self.work_image.display_image(pixmap)
         
@@ -167,8 +169,17 @@ class MainWindow(QMainWindow):
 
     def on_parallax_finished(self, result):
         if result == QDialog.Accepted:
-            self.final_parallax_coords = self.work_image.get_parallax_coordinates()
-            print(f"Parallax Fixed. Coords: {self.final_parallax_coords}")
+            coords = self.work_image.get_parallax_coordinates()
+            if coords and len(coords) == 4 and hasattr(self, 'current_pixmap') and self.current_pixmap:
+                new_pixmap = apply_parallax_correction(self.current_pixmap, coords)
+                if new_pixmap:
+                    self.current_pixmap = new_pixmap
+                    self.work_image.display_image(self.current_pixmap)
+                    print(f"Parallax Fixed. Coords: {coords}")
+                else:
+                    print("Parallax correction failed.")
+
+
         else:
             print("Parallax Cancelled")
             
