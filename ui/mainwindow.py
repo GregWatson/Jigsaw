@@ -58,36 +58,37 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Jigsaw - Windows 11 Graphic App")
-        self.resize(2000, 1700)
-        
+        self.resize(1500, 1200)
+
         # Setup Central Widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        
+
         # Main Layout (Horizontal: Controls | Content)
         main_layout = QHBoxLayout(central_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         # Components
         self.work_image = GraphicsArea()
         self.controls = ControlPanel(self.work_image)
         self.controls.btn_fix_parallax.clicked.connect(self.start_parallax_flow)
         self.controls.btn_process_pieces.clicked.connect(self.start_piece_detection)
-        
+
         self.current_source_label = None
-        
+
         # --- Right Side Content Area (Vertical: Top Images | Bottom Graphics) ---
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
         content_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         # Top Row (3 Images)
         top_row_widget = QWidget()
-        top_row_widget.setMaximumHeight(250) # Keep images fairly small
+        top_row_widget.setMaximumHeight(450) # Keep images fairly small
+        top_row_widget.setMinimumHeight(350) # But not too small
         top_row_layout = QHBoxLayout(top_row_widget)
         top_row_layout.setContentsMargins(10, 10, 10, 10)
         top_row_layout.setSpacing(10)
-        
+
         labels = ["Box cover", "So far", "Pieces"]
         self.image_labels = {}
         for text in labels:
@@ -95,14 +96,14 @@ class MainWindow(QMainWindow):
             label.clicked.connect(lambda p, s=text: self.set_active_image(p, s))
             self.image_labels[text] = label
             top_row_layout.addWidget(label)
-            
+
         content_layout.addWidget(top_row_widget, 0) # 0 stretch factor (fixed size/no growth)
         content_layout.addWidget(self.work_image, 1) # 1 stretch factor (takes all remaining space)
-        
+
         # Add to main layout
         main_layout.addWidget(self.controls, 1)      # Controls take small width
         main_layout.addWidget(content_widget, 4)     # Content takes more width
-        
+
         # Styling
         self.setStyleSheet("""
             QMainWindow {
@@ -132,13 +133,13 @@ class MainWindow(QMainWindow):
             # Optionally simulate a click to make it active immediately
             # self.set_active_image(self.image_labels["Box cover"]._original_pixmap, "Box cover")
 
-        
+
     def set_active_image(self, pixmap, source_label):
         self.current_source_label = source_label
         self.current_pixmap = pixmap
         print(f"Active source set to: {self.current_source_label}") # Verification/Debug
         self.work_image.display_image(pixmap)
-        
+
         if self.current_source_label == "Box cover":
             self.controls.btn_fix_parallax.setVisible(True)
             self.controls.btn_process_pieces.setVisible(False)
@@ -151,14 +152,14 @@ class MainWindow(QMainWindow):
 
     def setup_menu(self):
         menu_bar = self.menuBar()
-        
+
         # File Menu
         file_menu = menu_bar.addMenu("File")
-        
+
         exit_action = QAction("Exit", self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
-        
+
         # Help Menu
         help_menu = menu_bar.addMenu("Help")
         about_action = QAction("About", self)
@@ -168,7 +169,7 @@ class MainWindow(QMainWindow):
     def start_parallax_flow(self):
         self.controls.btn_fix_parallax.setEnabled(False)
         self.work_image.start_parallax_mode()
-        
+
         self.parallax_dialog = ParallaxHelpDialog(self)
         self.parallax_dialog.finished.connect(self.on_parallax_finished)
         self.parallax_dialog.show()
@@ -188,7 +189,7 @@ class MainWindow(QMainWindow):
 
         else:
             print("Parallax Cancelled")
-            
+
         self.work_image.clear_parallax_selector()
         self.controls.btn_fix_parallax.setEnabled(True)
         self.parallax_dialog = None
@@ -196,21 +197,21 @@ class MainWindow(QMainWindow):
     def start_piece_detection(self):
         if not hasattr(self, 'current_pixmap') or not self.current_pixmap:
             return
-            
+
         print("Starting piece detection...")
         from jigsaw.processor import detect_pieces
-        
+
         # Run detection
         pieces, thresh_img = detect_pieces(self.current_pixmap)
         print(f"Detected {len(pieces)} pieces.")
-        
-        
+
+
         # Visualize
         self.work_image.display_pieces_contours(pieces)
-        
+
         from jigsaw.matcher import find_matches
         matches = find_matches(pieces)
         print(f"Found {len(matches)} potential matches.")
-        
+
         self.work_image.display_matches(matches)
 
