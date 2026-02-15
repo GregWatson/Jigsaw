@@ -72,6 +72,7 @@ class MainWindow(QMainWindow):
         self.work_image = GraphicsArea()
         self.controls = ControlPanel(self.work_image)
         self.controls.btn_fix_parallax.clicked.connect(self.start_parallax_flow)
+        self.controls.btn_process_pieces.clicked.connect(self.start_piece_detection)
         
         self.current_source_label = None
         
@@ -140,8 +141,13 @@ class MainWindow(QMainWindow):
         
         if self.current_source_label == "Box cover":
             self.controls.btn_fix_parallax.setVisible(True)
+            self.controls.btn_process_pieces.setVisible(False)
+        elif self.current_source_label == "Pieces":
+            self.controls.btn_fix_parallax.setVisible(False)
+            self.controls.btn_process_pieces.setVisible(True)
         else:
             self.controls.btn_fix_parallax.setVisible(False)
+            self.controls.btn_process_pieces.setVisible(False)
 
     def setup_menu(self):
         menu_bar = self.menuBar()
@@ -186,3 +192,25 @@ class MainWindow(QMainWindow):
         self.work_image.clear_parallax_selector()
         self.controls.btn_fix_parallax.setEnabled(True)
         self.parallax_dialog = None
+
+    def start_piece_detection(self):
+        if not hasattr(self, 'current_pixmap') or not self.current_pixmap:
+            return
+            
+        print("Starting piece detection...")
+        from jigsaw.processor import detect_pieces
+        
+        # Run detection
+        pieces, thresh_img = detect_pieces(self.current_pixmap)
+        print(f"Detected {len(pieces)} pieces.")
+        
+        
+        # Visualize
+        self.work_image.display_pieces_contours(pieces)
+        
+        from jigsaw.matcher import find_matches
+        matches = find_matches(pieces)
+        print(f"Found {len(matches)} potential matches.")
+        
+        self.work_image.display_matches(matches)
+

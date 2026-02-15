@@ -118,3 +118,97 @@ class GraphicsArea(QGraphicsView):
         if hasattr(self, 'parallax_polygon'):
             self.scene.removeItem(self.parallax_polygon)
             del self.parallax_polygon
+    def display_pieces_contours(self, pieces):
+        # We assume the background image is already displayed or cleared.
+        # This overlays contours.
+        
+        pen = QPen(QColor("magenta"), 2)
+        
+        for piece in pieces:
+            # content is contour points
+            # cv2 contour is (N, 1, 2) array of (x,y)
+            # Need to convert to QPolygonF
+            # Also piece.contour is relative to the piece cutout? 
+            # In processor.py: new_piece = Piece(..., cnt_shifted, ...) with origin_offset
+            # So to draw on main image, we need to shift back or usage global contour?
+            
+            # processor.py line 73: cnt_shifted = cnt - [x, y]
+            # piece.origin = (x, y)
+            
+            # So global_pos = pt + origin
+            
+            # Draw full contour first as base
+            base_poly = QPolygonF()
+            ox, oy = piece.origin
+            for pt in piece.contour:
+                px, py = pt[0]
+                base_poly.append(QPointF(px + ox, py + oy))
+            
+            base_item = QGraphicsPolygonItem(base_poly)
+            # base_item.setPen(QPen(QColor(100, 100, 100), 1))
+            base_item.setPen(Qt.NoPen)
+            # base_item.setBrush(QBrush(QColor(255, 255, 255, 30))) # Slight fill
+            self.scene.addItem(base_item)
+            
+            # Draw Sides with colors
+            from jigsaw.piece import SideType
+            colors = {
+                SideType.FLAT: QColor("green"),
+                SideType.TAB: QColor("red"),
+                SideType.SOCKET: QColor("blue")
+            }
+            
+            for side in piece.sides:
+                if side and side.contour is not None:
+                    path = QPainterPath()
+                    start_pt = side.contour[0][0]
+                    path.moveTo(start_pt[0] + ox, start_pt[1] + oy)
+                    
+                    for i in range(1, len(side.contour)):
+                        pt = side.contour[i][0]
+                        path.lineTo(pt[0] + ox, pt[1] + oy)
+                    
+                    path_item = QGraphicsPathItem(path)
+                    pen = QPen(colors.get(side.type, QColor("white")), 3)
+                    path_item.setPen(pen)
+                    self.scene.addItem(path_item)
+
+
+    def display_matches(self, matches):
+        """
+        Draws lines connecting matched sides.
+        matches: list of dicts with 'p1', 's1', 'p2', 's2', 'score'
+        """
+        pen = QPen(QColor("yellow"), 2, Qt.DashLine)
+        
+        for m in matches:
+            p1 = m['p1']
+            p2 = m['p2']
+            s1 = m['s1'] # index
+            s2 = m['s2'] # index
+            
+            # Get center points of the sides
+            # Side 1
+            side1 = p1.sides[s1]
+            if not side1 or side1.contour is None: continue
+            
+            # Simple average of points
+            # contour is (N, 1, 2)
+            c1 = np.mean(side1.contour, axis=0)[0]
+            # Add origin offset
+            start_pt = QPointF(c1[0] + p1.origin[0], c1[1] + p1.origin[1])
+            
+            # Side 2
+            side2 = p2.sides[s2]
+            if not side2 or side2.contour is None: continue
+            c2 = np.mean(side2.contour, axis=0)[0]
+            end_pt = QPointF(c2[0] + p2.origin[0], c2[1] + p2.origin[1])
+            
+            line = QGraphicsPathItem()
+            path = QPainterPath()
+            path.moveTo(start_pt)
+            path.lineTo(end_pt)
+            
+            line.setPath(path)
+            line.setPen(pen)
+            self.scene.addItem(line)

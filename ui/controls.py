@@ -31,6 +31,10 @@ class ControlPanel(QWidget):
         # Connection will be handled by MainWindow to coordinate with popup flow
         self.btn_fix_parallax.setVisible(False)
         layout.addWidget(self.btn_fix_parallax)
+
+        self.btn_process_pieces = QPushButton("Process Pieces")
+        self.btn_process_pieces.setVisible(False)
+        layout.addWidget(self.btn_process_pieces)
         
         # Expand filler to push items up
         layout.addStretch()
