@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QL
 from PySide6.QtGui import QAction, QColor, QPalette, QPixmap, QImage
 import cv2
 import numpy as np
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QPoint
 from .graphics_area import GraphicsArea
 from .controls import ControlPanel
 from .parallax_worker import ParallaxHelpDialog, apply_parallax_correction
@@ -82,10 +82,10 @@ class MainWindow(QMainWindow):
         content_layout.setContentsMargins(0, 0, 0, 0)
 
         # Top Row (3 Images)
-        top_row_widget = QWidget()
-        top_row_widget.setMaximumHeight(450) # Keep images fairly small
-        top_row_widget.setMinimumHeight(350) # But not too small
-        top_row_layout = QHBoxLayout(top_row_widget)
+        self.top_row_widget = QWidget()
+        self.top_row_widget.setMaximumHeight(450) # Keep images fairly small
+        self.top_row_widget.setMinimumHeight(350) # But not too small
+        top_row_layout = QHBoxLayout(self.top_row_widget)
         top_row_layout.setContentsMargins(10, 10, 10, 10)
         top_row_layout.setSpacing(10)
 
@@ -97,7 +97,7 @@ class MainWindow(QMainWindow):
             self.image_labels[text] = label
             top_row_layout.addWidget(label)
 
-        content_layout.addWidget(top_row_widget, 0) # 0 stretch factor (fixed size/no growth)
+        content_layout.addWidget(self.top_row_widget, 0) # 0 stretch factor (fixed size/no growth)
         content_layout.addWidget(self.work_image, 1) # 1 stretch factor (takes all remaining space)
 
         # Add to main layout
@@ -131,8 +131,15 @@ class MainWindow(QMainWindow):
         if "Box cover" in self.image_labels:
             self.image_labels["Box cover"].set_image(file_path)
             # Optionally simulate a click to make it active immediately
-            # self.set_active_image(self.image_labels["Box cover"]._original_pixmap, "Box cover")
+            self.set_active_image(self.image_labels["Box cover"]._original_pixmap, "Box cover")
 
+    def load_jigsaw_image(self, file_path):
+        if "So far" in self.image_labels:
+            self.image_labels["So far"].set_image(file_path)
+
+    def load_piece_image(self, file_path):
+        if "Pieces" in self.image_labels:
+            self.image_labels["Pieces"].set_image(file_path)
 
     def set_active_image(self, pixmap, source_label):
         self.current_source_label = source_label
@@ -172,6 +179,25 @@ class MainWindow(QMainWindow):
 
         self.parallax_dialog = ParallaxHelpDialog(self)
         self.parallax_dialog.finished.connect(self.on_parallax_finished)
+        
+        # Position dialog over top_row_widget
+        if hasattr(self, 'top_row_widget'):
+            # Get geometry of top_row_widget in global coordinates
+            # mapToGlobal(QPoint(0,0)) gives the global position of the widget's top-left corner
+            global_top_left = self.top_row_widget.mapToGlobal(QPoint(0, 0))
+            width = self.top_row_widget.width()
+            height = self.top_row_widget.height()
+            
+            # Calculate center of top_row_widget
+            center_x = global_top_left.x() + width // 2
+            center_y = global_top_left.y() + height // 2
+            
+            # Calculate top-left for dialog to be centered
+            dialog_x = center_x - self.parallax_dialog.width() // 2
+            dialog_y = center_y - self.parallax_dialog.height() // 2
+            
+            self.parallax_dialog.move(dialog_x, dialog_y)
+
         self.parallax_dialog.show()
 
     def on_parallax_finished(self, result):
@@ -182,6 +208,8 @@ class MainWindow(QMainWindow):
                 if new_pixmap:
                     self.current_pixmap = new_pixmap
                     self.work_image.display_image(self.current_pixmap)
+                    self.image_labels["Box cover"].set_image(self.current_pixmap)
+
                     print(f"Parallax Fixed. Coords: {coords}")
                 else:
                     print("Parallax correction failed.")

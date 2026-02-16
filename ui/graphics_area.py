@@ -118,6 +118,7 @@ class GraphicsArea(QGraphicsView):
         if hasattr(self, 'parallax_polygon'):
             self.scene.removeItem(self.parallax_polygon)
             del self.parallax_polygon
+            
     def display_pieces_contours(self, pieces):
         # We assume the background image is already displayed or cleared.
         # This overlays contours.

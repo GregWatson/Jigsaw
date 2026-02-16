@@ -12,7 +12,7 @@ class ParallaxHelpDialog(QDialog):
         self.resize(300, 150)
         
         layout = QVBoxLayout(self)
-        label = QLabel("Drag handles to select the actual image of the jigsaw.\n\nClick Done when selected or ESC to cancel.")
+        label = QLabel("Drag the yellow handles to select only the image of the jigsaw.\n\nClick Done when selected or ESC to cancel.")
         label.setWordWrap(True)
         layout.addWidget(label)
         
